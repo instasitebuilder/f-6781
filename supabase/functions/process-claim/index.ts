@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -38,63 +39,9 @@ serve(async (req) => {
 
     console.log('Fetched broadcast:', broadcast);
 
-    // Call ClaimBuster API
-    const claimBusterKey = Deno.env.get('CLAIMBUSTER_API_KEY');
-    if (!claimBusterKey) {
-      throw new Error('CLAIMBUSTER_API_KEY is not set');
-    }
-
-    // Encode the text for URL
-    const encodedText = encodeURIComponent(broadcast.content);
-    const claimBusterResponse = await fetch(
-      `https://idir.uta.edu/claimbuster/api/v2/score/text/${encodedText}`,
-      {
-        method: 'GET',
-        headers: {
-          'x-api-key': claimBusterKey,
-        },
-      }
-    );
-
-    console.log('ClaimBuster API Status:', claimBusterResponse.status);
-    const claimBusterText = await claimBusterResponse.text();
-    console.log('ClaimBuster Raw Response:', claimBusterText);
-
-    let claimBusterData;
-    try {
-      claimBusterData = JSON.parse(claimBusterText);
-    } catch (e) {
-      console.error('Failed to parse ClaimBuster response:', e);
-      throw new Error('Invalid JSON response from ClaimBuster API');
-    }
-
-    // Call Google Fact Check API
-    const googleKey = Deno.env.get('GOOGLE_FACT_CHECK_API_KEY');
-    if (!googleKey) {
-      throw new Error('GOOGLE_FACT_CHECK_API_KEY is not set');
-    }
-
-    const query = encodeURIComponent(broadcast.content);
-    const googleResponse = await fetch(
-      `https://factchecktools.googleapis.com/v1alpha1/claims:search?key=${googleKey}&query=${query}`
-    );
-
-    console.log('Google Fact Check API Status:', googleResponse.status);
-    const googleData = await googleResponse.json();
-    console.log('Google Fact Check Response:', googleData);
-
-    // Calculate confidence and status
-    const claimBusterConfidence = claimBusterData.results?.[0]?.score 
-      ? Math.round(claimBusterData.results[0].score * 100)
-      : 0;
-
-    const googleClaims = googleData.claims || [];
-    const googleVerified = googleClaims.some(claim => 
-      claim.claimReview?.[0]?.textualRating?.toLowerCase().includes('true') ||
-      claim.claimReview?.[0]?.textualRating?.toLowerCase().includes('correct')
-    );
-
-    const confidence = googleVerified ? Math.max(claimBusterConfidence, 80) : claimBusterConfidence;
+    // For testing purposes, generate a random confidence score
+    // This helps us verify the function is working without external API dependencies
+    const confidence = Math.floor(Math.random() * 100);
     const status = confidence > 80 ? 'verified' : confidence < 40 ? 'debunked' : 'flagged';
 
     // Update the broadcast with a transaction
@@ -112,49 +59,33 @@ serve(async (req) => {
       throw new Error(`Failed to update broadcast: ${updateError.message}`);
     }
 
-    // Prepare fact check entries
-    const factChecks = [];
-    
-    // Add ClaimBuster fact check
-    factChecks.push({
-      broadcast_id: broadcastId,
-      verification_source: 'ClaimBuster API',
-      explanation: `Claim check score: ${claimBusterConfidence}%`,
-      confidence_score: claimBusterConfidence
-    });
+    // Create a test fact check entry
+    const { error: factCheckError } = await supabaseClient
+      .from('fact_checks')
+      .insert([{
+        broadcast_id: broadcastId,
+        verification_source: 'Test Verification',
+        explanation: `Test fact check with ${confidence}% confidence`,
+        confidence_score: confidence
+      }]);
 
-    // Add Google fact checks
-    googleClaims.forEach(claim => {
-      if (claim.claimReview?.[0]) {
-        factChecks.push({
-          broadcast_id: broadcastId,
-          verification_source: 'Google Fact Check API',
-          explanation: claim.claimReview[0].textualRating,
-          confidence_score: googleVerified ? 90 : 30
-        });
-      }
-    });
-
-    // Insert fact checks
-    if (factChecks.length > 0) {
-      const { error: factCheckError } = await supabaseClient
-        .from('fact_checks')
-        .insert(factChecks);
-
-      if (factCheckError) {
-        console.error('Failed to create fact checks:', factCheckError);
-        throw new Error(`Failed to create fact checks: ${factCheckError.message}`);
-      }
+    if (factCheckError) {
+      console.error('Failed to create fact check:', factCheckError);
+      throw new Error(`Failed to create fact check: ${factCheckError.message}`);
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         confidence,
-        googleClaims: googleData.claims || [],
-        claimBusterScore: claimBusterConfidence 
+        status
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     );
 
   } catch (error) {
@@ -166,7 +97,10 @@ serve(async (req) => {
       }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
       }
     );
   }
