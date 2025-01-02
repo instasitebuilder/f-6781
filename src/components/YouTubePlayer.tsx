@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import YouTube from "react-youtube";
 import { Card } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { TranscriptDisplay } from "./transcript/TranscriptDisplay";
-import type { TranscriptItem } from "./transcript/types";
+
+interface TranscriptItem {
+  text: string;
+  start: number;
+  duration: number;
+}
 
 const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [videoId, setVideoId] = useState<string>("");
@@ -13,6 +18,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
   const { toast } = useToast();
   const intervalRef = useRef<number>();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (videoUrl) {
@@ -99,6 +105,8 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       });
     } catch (error: any) {
       console.error('Error fetching transcript:', error);
+      
+      // Clear the transcript when there's an error
       setTranscript([]);
       
       let errorMessage = "No transcript is available for this video";
@@ -109,6 +117,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
         errorMessage = "Please provide a valid YouTube URL";
       }
       
+      // Show appropriate error message
       toast({
         title: "Transcript Unavailable",
         description: errorMessage,
@@ -135,6 +144,20 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
     }
   };
 
+  // Auto-scroll to current transcript
+  useEffect(() => {
+    const currentTranscript = transcript.find(
+      item => currentTime >= item.start && currentTime <= item.start + item.duration
+    );
+    
+    if (currentTranscript && scrollRef.current) {
+      const element = document.getElementById(`transcript-${currentTranscript.start}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentTime, transcript]);
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -154,11 +177,38 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
 
       <Card className="p-4">
         <h3 className="text-lg font-semibold mb-2">Live Transcript</h3>
-        <TranscriptDisplay
-          transcript={transcript}
-          currentTime={currentTime}
-          isLoadingTranscript={isLoadingTranscript}
-        />
+        {isLoadingTranscript ? (
+          <p className="text-sm text-muted-foreground">Loading transcript...</p>
+        ) : transcript.length > 0 ? (
+          <ScrollArea className="h-[300px]" ref={scrollRef}>
+            <div className="space-y-2">
+              {transcript.map((item, index) => (
+                <p
+                  key={index}
+                  id={`transcript-${item.start}`}
+                  className={`text-sm p-2 rounded transition-colors duration-200 ${
+                    currentTime >= item.start &&
+                    currentTime <= item.start + item.duration
+                      ? "bg-accent"
+                      : ""
+                  }`}
+                >
+                  {item.text}
+                </p>
+              ))}
+            </div>
+          </ScrollArea>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No transcript available for this video. This could be because:
+            <ul className="list-disc pl-5 mt-2">
+              <li>Captions are disabled for this video</li>
+              <li>The video owner hasn't added captions</li>
+              <li>The video is in a language we don't support yet</li>
+              <li>The video might be unavailable or private</li>
+            </ul>
+          </p>
+        )}
       </Card>
     </div>
   );
