@@ -1,26 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import YouTube from "react-youtube";
 import { Card } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { TranscriptDisplay } from "./transcript/TranscriptDisplay";
-import { Button } from "./ui/button";
-import { FileDown } from "lucide-react";
-import jsPDF from "jspdf";
-import type { TranscriptItem } from "./transcript/types";
+
+interface TranscriptItem {
+  text: string;
+  start: number;
+  duration: number;
+}
 
 const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [videoId, setVideoId] = useState<string>("");
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
-  const [stats, setStats] = useState({
-    totalEntries: 0,
-    totalWords: 0,
-    factCheckScore: 0
-  });
   const { toast } = useToast();
   const intervalRef = useRef<number>();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (videoUrl) {
@@ -44,81 +42,10 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
     };
   }, [videoUrl]);
 
-  useEffect(() => {
-    if (transcript.length > 0) {
-      calculateStats();
-    }
-  }, [transcript]);
-
   const extractVideoId = (url: string) => {
     const regExp = /(?:v=|\/)([0-9A-Za-z_-]{11})(?:[\&\?]|$)/;
     const match = url.match(regExp);
     return match ? match[1] : null;
-  };
-
-  const calculateStats = () => {
-    const totalEntries = transcript.length;
-    const totalWords = transcript.reduce((acc, item) => 
-      acc + item.text.split(/\s+/).length, 0
-    );
-    const factCheckScore = transcript.length; // Placeholder scoring logic
-
-    setStats({
-      totalEntries,
-      totalWords,
-      factCheckScore
-    });
-  };
-
-  const generatePDF = () => {
-    const pdf = new jsPDF();
-    const margin = 20;
-    let yPosition = margin;
-
-    // Title
-    pdf.setFontSize(16);
-    pdf.text("YouTube Video Transcript Report", margin, yPosition);
-    yPosition += 15;
-
-    // Video URL
-    pdf.setFontSize(12);
-    pdf.text(`Video URL: ${videoUrl}`, margin, yPosition);
-    yPosition += 10;
-
-    // Quick Stats
-    pdf.text("Quick Stats:", margin, yPosition);
-    yPosition += 7;
-    pdf.text(`Total Entries: ${stats.totalEntries}`, margin + 5, yPosition);
-    yPosition += 7;
-    pdf.text(`Total Words: ${stats.totalWords}`, margin + 5, yPosition);
-    yPosition += 7;
-    pdf.text(`Fact-Check Score: ${stats.factCheckScore}`, margin + 5, yPosition);
-    yPosition += 15;
-
-    // Transcript
-    pdf.text("Transcript:", margin, yPosition);
-    yPosition += 10;
-
-    transcript.forEach((item) => {
-      // Check if we need a new page
-      if (yPosition > pdf.internal.pageSize.height - margin) {
-        pdf.addPage();
-        yPosition = margin;
-      }
-
-      const text = `[${item.start.toFixed(2)}s] ${item.text}`;
-      const lines = pdf.splitTextToSize(text, pdf.internal.pageSize.width - (2 * margin));
-      pdf.text(lines, margin, yPosition);
-      yPosition += 7 * lines.length;
-    });
-
-    // Save PDF
-    pdf.save("YouTube_Transcript_Report.pdf");
-    
-    toast({
-      title: "Success",
-      description: "PDF report has been generated and downloaded",
-    });
   };
 
   const fetchTranscript = async (id: string) => {
@@ -178,6 +105,8 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       });
     } catch (error: any) {
       console.error('Error fetching transcript:', error);
+      
+      // Clear the transcript when there's an error
       setTranscript([]);
       
       let errorMessage = "No transcript is available for this video";
@@ -188,6 +117,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
         errorMessage = "Please provide a valid YouTube URL";
       }
       
+      // Show appropriate error message
       toast({
         title: "Transcript Unavailable",
         description: errorMessage,
@@ -214,6 +144,20 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
     }
   };
 
+  // Auto-scroll to current transcript
+  useEffect(() => {
+    const currentTranscript = transcript.find(
+      item => currentTime >= item.start && currentTime <= item.start + item.duration
+    );
+    
+    if (currentTranscript && scrollRef.current) {
+      const element = document.getElementById(`transcript-${currentTranscript.start}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentTime, transcript]);
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -231,41 +175,40 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
         />
       </Card>
 
-      {transcript.length > 0 && (
-        <Card className="p-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Transcript Statistics</h3>
-              <Button onClick={generatePDF} className="gap-2">
-                <FileDown className="h-4 w-4" />
-                Download PDF Report
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground">Total Entries</div>
-                <div className="text-2xl font-bold">{stats.totalEntries}</div>
-              </div>
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground">Total Words</div>
-                <div className="text-2xl font-bold">{stats.totalWords}</div>
-              </div>
-              <div className="p-4 bg-secondary rounded-lg">
-                <div className="text-sm text-muted-foreground">Fact-Check Score</div>
-                <div className="text-2xl font-bold">{stats.factCheckScore}</div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
       <Card className="p-4">
         <h3 className="text-lg font-semibold mb-2">Live Transcript</h3>
-        <TranscriptDisplay
-          transcript={transcript}
-          currentTime={currentTime}
-          isLoadingTranscript={isLoadingTranscript}
-        />
+        {isLoadingTranscript ? (
+          <p className="text-sm text-muted-foreground">Loading transcript...</p>
+        ) : transcript.length > 0 ? (
+          <ScrollArea className="h-[300px]" ref={scrollRef}>
+            <div className="space-y-2">
+              {transcript.map((item, index) => (
+                <p
+                  key={index}
+                  id={`transcript-${item.start}`}
+                  className={`text-sm p-2 rounded transition-colors duration-200 ${
+                    currentTime >= item.start &&
+                    currentTime <= item.start + item.duration
+                      ? "bg-accent"
+                      : ""
+                  }`}
+                >
+                  {item.text}
+                </p>
+              ))}
+            </div>
+          </ScrollArea>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No transcript available for this video. This could be because:
+            <ul className="list-disc pl-5 mt-2">
+              <li>Captions are disabled for this video</li>
+              <li>The video owner hasn't added captions</li>
+              <li>The video is in a language we don't support yet</li>
+              <li>The video might be unavailable or private</li>
+            </ul>
+          </p>
+        )}
       </Card>
     </div>
   );

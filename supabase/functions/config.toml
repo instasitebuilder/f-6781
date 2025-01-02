@@ -1,3 +1,0 @@
-project_id = "cxsttajrlxchoebxshca"
-[functions.process-claim]
-verify_jwt = false
