@@ -15,6 +15,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [videoId, setVideoId] = useState<string>("");
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,6 +41,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   };
 
   const fetchTranscript = async (id: string) => {
+    setIsLoadingTranscript(true);
     try {
       console.log('Fetching transcript for video ID:', id);
       const { data, error } = await supabase.functions.invoke('get-transcript', {
@@ -66,11 +68,21 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       setTranscript(formattedTranscript);
     } catch (error) {
       console.error('Error fetching transcript:', error);
+      let errorMessage = "Failed to fetch transcript";
+      
+      if (error.message?.includes('Transcript is not available') || 
+          error.message?.includes('No transcript available')) {
+        errorMessage = "No transcript is available for this video";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch transcript",
+        description: errorMessage,
         variant: "destructive",
       });
+      setTranscript([]);
+    } finally {
+      setIsLoadingTranscript(false);
     }
   };
 
@@ -105,23 +117,29 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
 
       <Card className="p-4">
         <h3 className="text-lg font-semibold mb-2">Live Transcript</h3>
-        <ScrollArea className="h-[300px]">
-          <div className="space-y-2">
-            {transcript.map((item, index) => (
-              <p
-                key={index}
-                className={`text-sm p-2 rounded ${
-                  currentTime >= item.start &&
-                  currentTime <= item.start + item.duration
-                    ? "bg-accent"
-                    : ""
-                }`}
-              >
-                {item.text}
-              </p>
-            ))}
-          </div>
-        </ScrollArea>
+        {isLoadingTranscript ? (
+          <p className="text-sm text-muted-foreground">Loading transcript...</p>
+        ) : transcript.length > 0 ? (
+          <ScrollArea className="h-[300px]">
+            <div className="space-y-2">
+              {transcript.map((item, index) => (
+                <p
+                  key={index}
+                  className={`text-sm p-2 rounded ${
+                    currentTime >= item.start &&
+                    currentTime <= item.start + item.duration
+                      ? "bg-accent"
+                      : ""
+                  }`}
+                >
+                  {item.text}
+                </p>
+              ))}
+            </div>
+          </ScrollArea>
+        ) : (
+          <p className="text-sm text-muted-foreground">No transcript available</p>
+        )}
       </Card>
     </div>
   );

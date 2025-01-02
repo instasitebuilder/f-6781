@@ -1,6 +1,6 @@
-import { serve } from 'https://deno.fresh.dev/std@v9.6.1/http/server.ts'
-import { getTranscript } from 'npm:youtube-transcript-api'
-import { corsHeaders } from '../_shared/cors.ts'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { getTranscript } from "npm:youtube-transcript-api"
+import { corsHeaders } from "../_shared/cors.ts"
 
 serve(async (req) => {
   // Handle CORS
@@ -40,14 +40,19 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error fetching transcript:', error)
     
-    const errorMessage = error.message.includes('No transcript available')
-      ? 'Transcript not available for this video'
-      : 'An error occurred while fetching the transcript'
+    let errorMessage = 'An error occurred while fetching the transcript'
+    let statusCode = 500
+
+    if (error.message.includes('No transcript available') || 
+        error.message.includes('Transcript is disabled')) {
+      errorMessage = 'Transcript is not available for this video'
+      statusCode = 404
+    }
     
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
-        status: error.message.includes('No transcript available') ? 404 : 500,
+        status: statusCode,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
