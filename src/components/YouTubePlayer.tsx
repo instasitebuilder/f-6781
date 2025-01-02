@@ -41,11 +41,21 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
 
   const fetchTranscript = async (id: string) => {
     try {
+      console.log('Fetching transcript for video ID:', id);
       const { data, error } = await supabase.functions.invoke('get-transcript', {
         body: { videoId: id }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error('No transcript data received');
+      }
+      
+      console.log('Transcript data received:', data);
       setTranscript(data);
     } catch (error) {
       console.error('Error fetching transcript:', error);

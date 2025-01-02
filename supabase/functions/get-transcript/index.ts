@@ -13,8 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url)
-    const videoId = url.searchParams.get('videoId')
+    const { videoId } = await req.json()
 
     if (!videoId) {
       return new Response(
@@ -26,7 +25,9 @@ serve(async (req) => {
       )
     }
 
+    console.log('Fetching transcript for video:', videoId);
     const transcript = await YoutubeTranscript.fetchTranscript(videoId)
+    console.log('Transcript fetched successfully');
     
     return new Response(
       JSON.stringify(transcript),
