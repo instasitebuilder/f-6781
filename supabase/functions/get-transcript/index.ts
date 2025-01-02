@@ -24,15 +24,29 @@ serve(async (req) => {
       )
     }
 
-    console.log('Fetching transcript for video:', videoId)
+    console.log('Attempting to fetch transcript for video:', videoId)
     
     try {
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
         lang: 'en',
         country: 'US'
       })
-      console.log('Transcript fetched successfully')
-      
+
+      if (!transcript || transcript.length === 0) {
+        console.log('No transcript data found for video:', videoId)
+        return new Response(
+          JSON.stringify({ error: 'No transcript data found for this video' }),
+          {
+            status: 404,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      }
+
+      console.log('Successfully fetched transcript for video:', videoId)
       return new Response(
         JSON.stringify(transcript),
         {
@@ -44,10 +58,39 @@ serve(async (req) => {
       )
     } catch (transcriptError: any) {
       console.error('Transcript fetch error:', transcriptError.message)
+      
+      // Handle specific error cases
+      if (transcriptError.message?.includes('Could not find automatic captions') ||
+          transcriptError.message?.includes('Transcript is disabled')) {
+        return new Response(
+          JSON.stringify({ error: 'Transcript is not available for this video' }),
+          {
+            status: 404,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      }
+      
+      if (transcriptError.message?.includes('Video is unavailable')) {
+        return new Response(
+          JSON.stringify({ error: 'Video is unavailable or does not exist' }),
+          {
+            status: 404,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      }
+
       return new Response(
-        JSON.stringify({ error: 'No transcript is available for this video' }),
+        JSON.stringify({ error: 'Failed to fetch transcript' }),
         {
-          status: 404,
+          status: 500,
           headers: {
             ...corsHeaders,
             'Content-Type': 'application/json'

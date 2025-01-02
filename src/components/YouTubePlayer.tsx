@@ -28,7 +28,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       } else {
         toast({
           title: "Invalid URL",
-          description: "Please enter a valid YouTube URL",
+          description: "Please provide a valid YouTube URL",
           variant: "destructive",
         });
       }
@@ -42,9 +42,9 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   }, [videoUrl]);
 
   const extractVideoId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const regExp = /(?:v=|\/)([0-9A-Za-z_-]{11})(?:[\&\?]|$)/;
     const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
+    return match ? match[1] : null;
   };
 
   const fetchTranscript = async (id: string) => {
@@ -80,10 +80,18 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       // Clear the transcript when there's an error
       setTranscript([]);
       
+      let errorMessage = "No transcript is available for this video";
+      
+      if (error.message?.includes('Video is unavailable')) {
+        errorMessage = "The video is unavailable or does not exist";
+      } else if (error.message?.includes('Invalid YouTube URL')) {
+        errorMessage = "Please provide a valid YouTube URL";
+      }
+      
       // Show appropriate error message
       toast({
         title: "Transcript Unavailable",
-        description: error.message || "No transcript is available for this video",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -153,6 +161,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
               <li>Captions are disabled for this video</li>
               <li>The video owner hasn't added captions</li>
               <li>The video is in a language we don't support yet</li>
+              <li>The video might be unavailable or private</li>
             </ul>
           </p>
         )}
