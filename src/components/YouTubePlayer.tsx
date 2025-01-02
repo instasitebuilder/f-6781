@@ -3,6 +3,7 @@ import YouTube from "react-youtube";
 import { Card } from "./ui/card";
 import { ScrollArea } from "./ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TranscriptItem {
   text: string;
@@ -40,10 +41,14 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
 
   const fetchTranscript = async (id: string) => {
     try {
-      const response = await fetch(`/api/transcript?videoId=${id}`);
-      const data = await response.json();
+      const { data, error } = await supabase.functions.invoke('get-transcript', {
+        body: { videoId: id }
+      });
+      
+      if (error) throw error;
       setTranscript(data);
     } catch (error) {
+      console.error('Error fetching transcript:', error);
       toast({
         title: "Error",
         description: "Failed to fetch transcript",
@@ -53,12 +58,10 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   };
 
   const onPlayerReady = (event: any) => {
-    // Player is ready
     console.log("Player ready");
   };
 
   const onPlayerStateChange = (event: any) => {
-    // Update current time when video is playing
     if (event.data === 1) {
       setInterval(() => {
         setCurrentTime(event.target.getCurrentTime());
