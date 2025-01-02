@@ -49,6 +49,8 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
 
   const fetchTranscript = async (id: string) => {
     setIsLoadingTranscript(true);
+    setTranscript([]); // Clear previous transcript
+    
     try {
       console.log('Fetching transcript for video ID:', id);
       const { data, error } = await supabase.functions.invoke('get-transcript', {
@@ -56,7 +58,6 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       });
       
       if (error) {
-        console.error('Supabase function error:', error);
         throw error;
       }
       
@@ -75,20 +76,16 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       setTranscript(formattedTranscript);
     } catch (error: any) {
       console.error('Error fetching transcript:', error);
-      let errorMessage = "Failed to fetch transcript";
       
-      if (error.message?.includes('No transcript is available') || 
-          error.message?.includes('Could not find automatic captions') ||
-          error.message?.includes('Transcript is disabled')) {
-        errorMessage = "No transcript is available for this video";
-      }
+      // Clear the transcript when there's an error
+      setTranscript([]);
       
+      // Show appropriate error message
       toast({
-        title: "Error",
-        description: errorMessage,
+        title: "Transcript Unavailable",
+        description: error.message || "No transcript is available for this video",
         variant: "destructive",
       });
-      setTranscript([]);
     } finally {
       setIsLoadingTranscript(false);
     }
@@ -99,13 +96,11 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   };
 
   const onPlayerStateChange = (event: any) => {
-    // Clear existing interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
 
     if (event.data === 1) { // Playing
-      // Set up new interval
       intervalRef.current = window.setInterval(() => {
         setCurrentTime(event.target.getCurrentTime());
       }, 1000);
@@ -152,7 +147,14 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
             </div>
           </ScrollArea>
         ) : (
-          <p className="text-sm text-muted-foreground">No transcript available</p>
+          <p className="text-sm text-muted-foreground">
+            No transcript available for this video. This could be because:
+            <ul className="list-disc pl-5 mt-2">
+              <li>Captions are disabled for this video</li>
+              <li>The video owner hasn't added captions</li>
+              <li>The video is in a language we don't support yet</li>
+            </ul>
+          </p>
         )}
       </Card>
     </div>

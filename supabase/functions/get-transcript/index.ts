@@ -25,38 +25,42 @@ serve(async (req) => {
     }
 
     console.log('Fetching transcript for video:', videoId)
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-      lang: 'en',
-      country: 'US'
-    })
-    console.log('Transcript fetched successfully')
     
-    return new Response(
-      JSON.stringify(transcript),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
+    try {
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
+        lang: 'en',
+        country: 'US'
+      })
+      console.log('Transcript fetched successfully')
+      
+      return new Response(
+        JSON.stringify(transcript),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
         }
-      }
-    )
-  } catch (error) {
-    console.error('Error fetching transcript:', error)
-    
-    let errorMessage = 'An error occurred while fetching the transcript'
-    let statusCode = 500
-
-    if (error.message?.includes('Could not find automatic captions') || 
-        error.message?.includes('Transcript is disabled') ||
-        error.message?.includes('No transcript available')) {
-      errorMessage = 'No transcript is available for this video'
-      statusCode = 404
+      )
+    } catch (transcriptError: any) {
+      console.error('Transcript fetch error:', transcriptError.message)
+      return new Response(
+        JSON.stringify({ error: 'No transcript is available for this video' }),
+        {
+          status: 404,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
     }
-    
+  } catch (error) {
+    console.error('General error:', error)
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An error occurred while processing your request' }),
       {
-        status: statusCode,
+        status: 500,
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json'
