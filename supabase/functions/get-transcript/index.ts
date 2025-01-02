@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { getTranscript } from "npm:youtube-transcript-api"
+import { YoutubeTranscript } from "npm:youtube-transcript"
 import { corsHeaders } from "../_shared/cors.ts"
 
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -25,7 +25,10 @@ serve(async (req) => {
     }
 
     console.log('Fetching transcript for video:', videoId)
-    const transcript = await getTranscript(videoId)
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
+      lang: 'en',
+      country: 'US'
+    })
     console.log('Transcript fetched successfully')
     
     return new Response(
@@ -43,9 +46,10 @@ serve(async (req) => {
     let errorMessage = 'An error occurred while fetching the transcript'
     let statusCode = 500
 
-    if (error.message.includes('No transcript available') || 
-        error.message.includes('Transcript is disabled')) {
-      errorMessage = 'Transcript is not available for this video'
+    if (error.message?.includes('Could not find automatic captions') || 
+        error.message?.includes('Transcript is disabled') ||
+        error.message?.includes('No transcript available')) {
+      errorMessage = 'No transcript is available for this video'
       statusCode = 404
     }
     

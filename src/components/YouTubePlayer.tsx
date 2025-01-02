@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import YouTube from "react-youtube";
 import { Card } from "./ui/card";
 import { ScrollArea } from "./ui/scroll-area";
@@ -17,6 +17,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
   const { toast } = useToast();
+  const intervalRef = useRef<number>();
 
   useEffect(() => {
     if (videoUrl) {
@@ -32,6 +33,12 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
         });
       }
     }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, [videoUrl]);
 
   const extractVideoId = (url: string) => {
@@ -66,12 +73,13 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       
       console.log('Transcript data received:', formattedTranscript);
       setTranscript(formattedTranscript);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching transcript:', error);
       let errorMessage = "Failed to fetch transcript";
       
-      if (error.message?.includes('Transcript is not available') || 
-          error.message?.includes('No transcript available')) {
+      if (error.message?.includes('No transcript is available') || 
+          error.message?.includes('Could not find automatic captions') ||
+          error.message?.includes('Transcript is disabled')) {
         errorMessage = "No transcript is available for this video";
       }
       
@@ -91,8 +99,14 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   };
 
   const onPlayerStateChange = (event: any) => {
+    // Clear existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
     if (event.data === 1) { // Playing
-      setInterval(() => {
+      // Set up new interval
+      intervalRef.current = window.setInterval(() => {
         setCurrentTime(event.target.getCurrentTime());
       }, 1000);
     }
