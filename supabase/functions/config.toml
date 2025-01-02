@@ -1,0 +1,4 @@
+project_id = "cxsttajrlxchoebxshca"
+
+[process-claim]
+verify_jwt = false
