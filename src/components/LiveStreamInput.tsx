@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Youtube } from "lucide-react";
+import YouTubePlayer from "./YouTubePlayer";
 
 const LiveStreamInput = () => {
   const [url, setUrl] = useState("");
+  const [activeUrl, setActiveUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
@@ -17,18 +18,11 @@ const LiveStreamInput = () => {
 
     setIsProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-video', {
-        body: { videoUrl: url },
-      });
-
-      if (error) throw error;
-
+      setActiveUrl(url);
       toast({
         title: "Success",
-        description: "Video is being processed for fact-checking",
+        description: "Video loaded successfully",
       });
-
-      setUrl("");
     } catch (error) {
       console.error('Error processing video:', error);
       toast({
@@ -42,28 +36,32 @@ const LiveStreamInput = () => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Youtube className="h-5 w-5" />
-          Add Live Stream
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            type="url"
-            placeholder="Enter YouTube live stream URL"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="flex-1"
-          />
-          <Button type="submit" disabled={isProcessing}>
-            {isProcessing ? "Processing..." : "Add Stream"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Youtube className="h-5 w-5" />
+            Add Live Stream
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <Input
+              type="url"
+              placeholder="Enter YouTube live stream URL"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={isProcessing}>
+              {isProcessing ? "Processing..." : "Load Video"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {activeUrl && <YouTubePlayer videoUrl={activeUrl} />}
+    </div>
   );
 };
 
