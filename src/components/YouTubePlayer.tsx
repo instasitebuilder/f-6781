@@ -54,14 +54,21 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       if (!data) {
         throw new Error('No transcript data received');
       }
+
+      // Transform the transcript data to match our interface
+      const formattedTranscript: TranscriptItem[] = data.map((item: any) => ({
+        text: item.text,
+        start: item.offset / 1000, // Convert milliseconds to seconds
+        duration: item.duration / 1000 // Convert milliseconds to seconds
+      }));
       
-      console.log('Transcript data received:', data);
-      setTranscript(data);
+      console.log('Transcript data received:', formattedTranscript);
+      setTranscript(formattedTranscript);
     } catch (error) {
       console.error('Error fetching transcript:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch transcript",
+        description: error.message || "Failed to fetch transcript",
         variant: "destructive",
       });
     }
@@ -72,7 +79,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   };
 
   const onPlayerStateChange = (event: any) => {
-    if (event.data === 1) {
+    if (event.data === 1) { // Playing
       setInterval(() => {
         setCurrentTime(event.target.getCurrentTime());
       }, 1000);
