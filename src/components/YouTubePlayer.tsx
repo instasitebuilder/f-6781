@@ -18,6 +18,7 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
   const { toast } = useToast();
   const intervalRef = useRef<number>();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (videoUrl) {
@@ -74,6 +75,34 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
       
       console.log('Transcript data received:', formattedTranscript);
       setTranscript(formattedTranscript);
+
+      // Process each transcript segment for fact-checking
+      formattedTranscript.forEach(async (item) => {
+        try {
+          const { data: broadcast } = await supabase
+            .from('broadcasts')
+            .insert([
+              {
+                content: item.text,
+                source: 'YouTube Live',
+                video_url: videoUrl,
+                timestamp: new Date(item.start * 1000).toISOString(),
+                transcript_status: 'processed'
+              }
+            ])
+            .select()
+            .single();
+
+          if (broadcast) {
+            // Trigger fact-checking process
+            await supabase.functions.invoke('process-claim', {
+              body: { broadcastId: broadcast.id }
+            });
+          }
+        } catch (error) {
+          console.error('Error processing transcript segment:', error);
+        }
+      });
     } catch (error: any) {
       console.error('Error fetching transcript:', error);
       
@@ -115,6 +144,20 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
     }
   };
 
+  // Auto-scroll to current transcript
+  useEffect(() => {
+    const currentTranscript = transcript.find(
+      item => currentTime >= item.start && currentTime <= item.start + item.duration
+    );
+    
+    if (currentTranscript && scrollRef.current) {
+      const element = document.getElementById(`transcript-${currentTranscript.start}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentTime, transcript]);
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -137,12 +180,13 @@ const YouTubePlayer = ({ videoUrl }: { videoUrl: string }) => {
         {isLoadingTranscript ? (
           <p className="text-sm text-muted-foreground">Loading transcript...</p>
         ) : transcript.length > 0 ? (
-          <ScrollArea className="h-[300px]">
+          <ScrollArea className="h-[300px]" ref={scrollRef}>
             <div className="space-y-2">
               {transcript.map((item, index) => (
                 <p
                   key={index}
-                  className={`text-sm p-2 rounded ${
+                  id={`transcript-${item.start}`}
+                  className={`text-sm p-2 rounded transition-colors duration-200 ${
                     currentTime >= item.start &&
                     currentTime <= item.start + item.duration
                       ? "bg-accent"
